@@ -26,8 +26,8 @@ const FACTION = {
   red:  { fill: '#9a2a2c', stroke: '#511518', accent: '#f3e6d4', text: '#fbf0e0', label: 'French Navy' },
 };
 
-const ARC_FILL_BROADSIDE = 'rgba(252, 211, 77, 0.26)';  // lighter amber (port + starboard)
-const ARC_FILL_FOREAFT   = 'rgba(217, 119, 6, 0.34)';   // deeper amber (fore + aft)
+const ARC_FILL_BROADSIDE = 'rgba(245, 158, 11, 0.42)';  // amber/gold (port + starboard)
+const ARC_FILL_FOREAFT   = 'rgba(180,  83,  9, 0.52)';  // deeper red-amber (fore + aft)
 const SELECT_OUTLINE = '#fbbf24';
 
 // ---------- Hex helpers ----------
@@ -603,11 +603,11 @@ export default function NavalPrototype() {
             <span>French Navy</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: ARC_FILL_BROADSIDE, outline: '1px solid rgba(252,211,77,0.6)' }} />
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: ARC_FILL_BROADSIDE, outline: '1px solid rgba(245,158,11,0.7)' }} />
             <span>Broadside (port / starboard)</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: ARC_FILL_FOREAFT, outline: '1px solid rgba(217,119,6,0.7)' }} />
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: ARC_FILL_FOREAFT, outline: '1px solid rgba(180,83,9,0.75)' }} />
             <span>Fore / aft</span>
           </div>
         </div>
