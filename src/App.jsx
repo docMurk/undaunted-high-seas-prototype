@@ -194,29 +194,46 @@ function ShipToken({ ship, x, y, selected, ghosted, onPointerDown }) {
   );
 }
 
-// ---------- Firing arc overlay (four parallel lines along bow direction) ----------
-// Fore + aft   = single line through ship along bow direction.
-// Port + stbd  = parallel lines offset one hex perpendicular to each side,
-//                running through fore-port/aft-port (or fore-stbd/aft-stbd) neighbors
-//                and extending to the board edge in both directions.
-// Hexes 2+ hexes perpendicular off the bow line are not in any arc.
+// ---------- Firing arc overlay (angle-based partition) ----------
+// Classify each hex by relative angle from ship's bow:
+//   rel ≈ 0°            → fore  (single hex line along bow direction)
+//   rel ≈ 180°          → aft   (single hex line along stern direction)
+//   60° ≤ rel ≤ 120°    → starboard cone (60° wedge)
+//   240° ≤ rel ≤ 300°   → port cone (60° wedge)
+//   else                → no arc
+// Cone boundaries align with the fore-port / aft-port / fore-stbd / aft-stbd
+// hex directions, so cones include hexes exactly along those directions.
 function FiringArcs({ ship }) {
   if (ship.col === null) return null;
 
-  const shipAxial = offsetToAxial(ship.col, ship.row);
-  const dirIdx = facingToDirIdx(ship.facing);
-  const foreVec = HEX_DIR_AXIAL[dirIdx];
-  const aftVec  = { q: -foreVec.q, r: -foreVec.r };
-  const forePortDir = HEX_DIR_AXIAL[(dirIdx - 1 + 6) % 6]; // 60° CCW from bow
-  const foreStbdDir = HEX_DIR_AXIAL[(dirIdx + 1) % 6];     // 60° CW  from bow
+  const shipPx = hexCenter(ship.col, ship.row);
+  const bow = ship.facing;
+  const EPS = 0.5;
 
-  const foreHexes = collectLineHexes(shipAxial, foreVec);
-  const aftHexes  = collectLineHexes(shipAxial, aftVec);
+  const foreAft = [];
+  const broadside = [];
 
-  const portStart = { q: shipAxial.q + forePortDir.q, r: shipAxial.r + forePortDir.r };
-  const stbdStart = { q: shipAxial.q + foreStbdDir.q, r: shipAxial.r + foreStbdDir.r };
-  const portHexes = collectBidirectionalLine(portStart, foreVec);
-  const stbdHexes = collectBidirectionalLine(stbdStart, foreVec);
+  for (let r = 0; r < GRID_ROWS; r++) {
+    for (let c = 0; c < GRID_COLS; c++) {
+      if (c === ship.col && r === ship.row) continue;
+      const px = hexCenter(c, r);
+      const dx = px.x - shipPx.x;
+      const dy = px.y - shipPx.y;
+      // Angle in our convention: 0° = up, CW positive.
+      let angle = Math.atan2(dx, -dy) * 180 / Math.PI;
+      angle = (angle + 360) % 360;
+      const rel = (angle - bow + 360) % 360;
+
+      if (rel < EPS || rel > 360 - EPS || Math.abs(rel - 180) < EPS) {
+        foreAft.push({ col: c, row: r });
+      } else if (
+        (rel >= 60 - EPS && rel <= 120 + EPS) ||
+        (rel >= 240 - EPS && rel <= 300 + EPS)
+      ) {
+        broadside.push({ col: c, row: r });
+      }
+    }
+  }
 
   const fillHex = (col, row, fill, key) => {
     const { x, y } = hexCenter(col, row);
@@ -231,14 +248,10 @@ function FiringArcs({ ship }) {
 
   return (
     <g pointerEvents="none">
-      {portHexes.map(({ col, row }) =>
-        fillHex(col, row, ARC_FILL_BROADSIDE, `p-${col}-${row}`))}
-      {stbdHexes.map(({ col, row }) =>
-        fillHex(col, row, ARC_FILL_BROADSIDE, `s-${col}-${row}`))}
-      {foreHexes.map(({ col, row }) =>
-        fillHex(col, row, ARC_FILL_FOREAFT, `fo-${col}-${row}`))}
-      {aftHexes.map(({ col, row }) =>
-        fillHex(col, row, ARC_FILL_FOREAFT, `af-${col}-${row}`))}
+      {broadside.map(({ col, row }) =>
+        fillHex(col, row, ARC_FILL_BROADSIDE, `bs-${col}-${row}`))}
+      {foreAft.map(({ col, row }) =>
+        fillHex(col, row, ARC_FILL_FOREAFT, `fa-${col}-${row}`))}
     </g>
   );
 }
