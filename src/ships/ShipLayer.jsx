@@ -2,9 +2,11 @@
 // Active only when state.locked === true (tile layer is inert).
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  hexCenter, hexPoints, nearestHex, HEX_SIZE,
+  hexCenter, hexPoints, nearestHex, hexDistance, HEX_SIZE,
   GRID_COLS, GRID_ROWS,
 } from '../hex/coords.js';
+
+const ARC_RANGE = 4;
 
 const TOKEN_SIZE = HEX_SIZE * 0.50;
 
@@ -92,6 +94,7 @@ function FiringArcs({ ship }) {
   for (let r = 0; r < GRID_ROWS; r++) {
     for (let c = 0; c < GRID_COLS; c++) {
       if (c === ship.col && r === ship.row) continue;
+      if (hexDistance(ship.col, ship.row, c, r) > ARC_RANGE) continue;
       const px = hexCenter(c, r);
       const dx = px.x - shipPx.x;
       const dy = px.y - shipPx.y;

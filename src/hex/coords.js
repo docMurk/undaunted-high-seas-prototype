@@ -193,6 +193,18 @@ export function nearestEvenColHex(x, y, x0 = BOARD_PAD, y0 = BOARD_PAD,
   return best;
 }
 
+// Hex distance in odd-q offset coordinates. Returns the number of hex steps
+// between two hexes (cube-coord distance).
+export function hexDistance(c1, r1, c2, r2) {
+  const ax = c1;
+  const az = r1 - (c1 - (c1 & 1)) / 2;
+  const ay = -ax - az;
+  const bx = c2;
+  const bz = r2 - (c2 - (c2 & 1)) / 2;
+  const by = -bx - bz;
+  return (Math.abs(ax - bx) + Math.abs(ay - by) + Math.abs(az - bz)) / 2;
+}
+
 // True if (col,row) lies inside one of the 18 standard tile slots in the
 // 6x3 layout — i.e. one of the 90 "playable" hexes. The other 18 hexes in
 // the 12x9 grid are the empty corners between tiles.
