@@ -3,7 +3,7 @@
 // (subtle dashed outline, non-interactive).
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
-  hexCenter, hexPoints, isPaintable,
+  hexCenter, hexPoints,
   HEX_SIZE, BOARD_PAD, BOARD_WIDTH_PX, BOARD_HEIGHT_PX,
   GRID_COLS, GRID_ROWS,
 } from '../hex/coords.js';
@@ -66,22 +66,6 @@ export default function TerrainBoard({ state, dispatch }) {
   for (let r = 0; r < GRID_ROWS; r++) {
     for (let c = 0; c < GRID_COLS; c++) {
       const { x, y } = hexCenter(c, r);
-      const playable = isPaintable(c, r);
-      if (!playable) {
-        hexes.push(
-          <polygon
-            key={`off-${c}-${r}`}
-            points={hexPoints(x, y, HEX_SIZE - 2)}
-            fill="none"
-            stroke="#1e293b"
-            strokeWidth="0.5"
-            strokeDasharray="2 3"
-            opacity="0.35"
-            pointerEvents="none"
-          />
-        );
-        continue;
-      }
       const key = `${c},${r}`;
       const t = state.terrain[key];
       const type = t?.type || 'open';
