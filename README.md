@@ -14,7 +14,7 @@ Build the playing surface from procedurally-generated 5-hex tiles, BoB-style. Dr
 
 ### Hex paint mode (custom maps)
 
-Skip tile placement entirely and paint terrain directly onto the 90 playable hexes. Pick a brush from the left palette (Open / Coastline / Reef / Island / Fog / Fort), then click + drag on the board to paint. The Fort brush toggles a fort marker on coastline or island hexes only.
+Skip tile placement entirely and paint terrain directly onto every hex of the 12×9 grid. Pick a brush from the left palette (Open / Coastline / Reef / Island / Fog / Fort), then click + drag on the board to paint. The Fort brush toggles a fort marker on coastline or island hexes only.
 
 Maps save by name to your browser's localStorage and reload from the side panel — useful for keeping a library of scenario boards (blockade, fleet engagement, island chain, etc.) you can return to without rebuilding.
 

@@ -8,7 +8,7 @@
 // reject if invalid (the UI shows green/red preview during drag).
 import { generatePalette, generateTile, nextTileId } from '../tiles/generator.js';
 import {
-  GRID_COLS, GRID_ROWS, tileOccupiedHexes, tileFitsInGrid, isPaintable,
+  GRID_COLS, GRID_ROWS, tileOccupiedHexes, tileFitsInGrid,
 } from '../hex/coords.js';
 
 export const TERRAIN_TYPES = ['open', 'coastline', 'reef', 'island', 'fog'];
@@ -235,7 +235,7 @@ export function reducer(state, action) {
 
     case 'PAINT_HEX': {
       const { col, row } = action;
-      if (!isPaintable(col, row)) return state;
+      if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return state;
       const brush = state.activeBrush;
       const key = `${col},${row}`;
       const cur = state.terrain[key] || { type: 'open' };

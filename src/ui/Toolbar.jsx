@@ -27,7 +27,7 @@ export default function Toolbar({ state, dispatch }) {
           </h1>
           <p className="text-[11px] text-slate-500 mt-0.5">
             {paintMode
-              ? <>{terrainCount}/90 hexes painted{state.activeMapName ? ` · ${state.activeMapName}` : ''}</>
+              ? <>{terrainCount} hex{terrainCount === 1 ? '' : 'es'} painted{state.activeMapName ? ` · ${state.activeMapName}` : ''}</>
               : <>{placedCount}/18 tiles placed · {state.ships.filter(s=>s.col!==null).length}/{state.ships.length} ships deployed</>}
           </p>
         </div>
