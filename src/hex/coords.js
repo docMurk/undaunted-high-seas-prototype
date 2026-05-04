@@ -236,3 +236,59 @@ export function paintableHexList() {
 // matching neighbor directions. Compass: 0°=N, increases CW.
 // Flat-top neighbors are at compass 0, 60, 120, 180, 240, 300.
 export const FACINGS = [0, 60, 120, 180, 240, 300];
+
+// --- Cube coord helpers (used by the hex-line walker) ---
+function offsetToCube(col, row) {
+  const x = col;
+  const z = row - (col - (col & 1)) / 2;
+  const y = -x - z;
+  return { x, y, z };
+}
+
+function cubeToOffset(x, y, z) {
+  const col = x;
+  const row = z + (x - (x & 1)) / 2;
+  return { col, row };
+}
+
+function cubeRound(x, y, z) {
+  let rx = Math.round(x);
+  let ry = Math.round(y);
+  let rz = Math.round(z);
+  const dx = Math.abs(rx - x);
+  const dy = Math.abs(ry - y);
+  const dz = Math.abs(rz - z);
+  if (dx > dy && dx > dz) rx = -ry - rz;
+  else if (dy > dz) ry = -rx - rz;
+  else rz = -rx - ry;
+  return { x: rx, y: ry, z: rz };
+}
+
+// Walk the hex line from (c1,r1) to (c2,r2). Returns an array of steps,
+// each step a 1- or 2-hex array. Two hexes appear when the line passes
+// exactly between adjacent hexes — callers treat such a step as covering
+// BOTH hexes (conservative blocking: either neighbor blocks the ray).
+export function hexLineSteps(c1, r1, c2, r2) {
+  const a = offsetToCube(c1, r1);
+  const b = offsetToCube(c2, r2);
+  const N = hexDistance(c1, r1, c2, r2);
+  if (N === 0) return [[{ col: c1, row: r1 }]];
+  const EPS = 1e-6;
+  const steps = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const lx = a.x + (b.x - a.x) * t;
+    const ly = a.y + (b.y - a.y) * t;
+    const lz = a.z + (b.z - a.z) * t;
+    const p = cubeRound(lx + EPS, ly + EPS, lz - 2 * EPS);
+    const q = cubeRound(lx - EPS, ly - EPS, lz + 2 * EPS);
+    const op = cubeToOffset(p.x, p.y, p.z);
+    const oq = cubeToOffset(q.x, q.y, q.z);
+    if (op.col === oq.col && op.row === oq.row) {
+      steps.push([op]);
+    } else {
+      steps.push([op, oq]);
+    }
+  }
+  return steps;
+}

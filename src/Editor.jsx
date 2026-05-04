@@ -9,6 +9,7 @@ import Board from './board/Board.jsx';
 import TerrainBoard from './board/TerrainBoard.jsx';
 import Tile from './tiles/Tile.jsx';
 import ShipReserve from './ships/ShipReserve.jsx';
+import ShipRulesPanel from './ships/ShipRulesPanel.jsx';
 
 // Small ghost following the cursor — only useful for palette drags before
 // the cursor enters the board (placed-tile drags fade the source tile and
@@ -124,28 +125,41 @@ export default function Editor() {
       <Toolbar state={state} dispatch={dispatch} />
 
       <div className="flex-1 flex gap-3 p-3 overflow-hidden">
-        {/* Palette sidebar */}
-        <div className="w-72 flex-shrink-0 flex flex-col gap-3">
-          <div className="flex-1 min-h-0">
-            {paintMode ? (
-              <TerrainPalette state={state} dispatch={dispatch} />
-            ) : (
-              <TilePalette
-                palette={state.palette}
-                rotations={paletteRotations}
-                onStartDrag={startPaletteDrag}
-                onRegenerateTile={regenerateTile}
-                onRotatePreview={togglePaletteRotation}
-              />
-            )}
-          </div>
-        </div>
+        {/* Palette sidebar — collapses left when in paint mode + locked
+            (play underway), since terrain brushes are useless then. */}
+        {(() => {
+          const sidebarOpen = !(paintMode && state.locked);
+          return (
+            <div
+              className={`flex-shrink-0 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+                sidebarOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 -translate-x-2'
+              }`}
+              aria-hidden={!sidebarOpen}
+            >
+              {/* Inner fixed-width keeps content from squashing during the
+                  width transition. */}
+              <div className="w-72 flex-1 min-h-0 flex flex-col gap-3">
+                {paintMode ? (
+                  <TerrainPalette state={state} dispatch={dispatch} />
+                ) : (
+                  <TilePalette
+                    palette={state.palette}
+                    rotations={paletteRotations}
+                    onStartDrag={startPaletteDrag}
+                    onRegenerateTile={regenerateTile}
+                    onRotatePreview={togglePaletteRotation}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Board area */}
         <div className="flex-1 flex flex-col gap-3 min-w-0">
           <div className="flex-1 flex justify-center overflow-auto">
             {paintMode ? (
-              <TerrainBoard state={state} dispatch={dispatch} />
+              <TerrainBoard state={state} dispatch={dispatch} svgRef={boardSvgRef} />
             ) : (
               <Board
                 state={state}
@@ -179,23 +193,30 @@ export default function Editor() {
             </div>
           )}
 
-          {/* Ship reserve (tile mode only) */}
-          {!paintMode && <ShipReserve state={state} dispatch={dispatch} boardSvgRef={boardSvgRef} />}
+          {/* Ship reserve — tile mode always; paint mode when locked */}
+          {(!paintMode || state.locked) && (
+            <ShipReserve state={state} dispatch={dispatch} boardSvgRef={boardSvgRef} />
+          )}
 
           {/* Status strip */}
           <div className="text-[11px] text-slate-500 flex items-center gap-4 px-1">
-            {paintMode ? (
+            {paintMode && state.locked ? (
+              <span>Paint mode · locked · click ships · Q/E rotate · F flip suppressed · Del returns to reserve · wheel zoom · right-drag pan · 0 reset</span>
+            ) : paintMode ? (
               <span>
                 Paint mode · brush: <span className="text-slate-300">{state.activeBrush}</span>
-                {' '}· click + drag to paint · Save & re-load named maps from the sidebar
+                {' '}· click + drag to paint · lock the map to deploy ships
               </span>
             ) : state.locked ? (
-              <span>Locked · click ships · Q/E rotate · Del returns to reserve</span>
+              <span>Locked · click ships · Q/E rotate · F flip suppressed · Del returns to reserve · wheel zoom · right-drag pan · 0 reset</span>
             ) : (
               <span>Editing · drag tiles to any hex · cursor follows tile · Q/E rotate · Del removes</span>
             )}
           </div>
         </div>
+
+        {/* Right-side rules + dice panel (collapsible) */}
+        <ShipRulesPanel state={state} dispatch={dispatch} />
       </div>
 
       {!paintMode && <PaletteDragGhost dragState={dragState} mouse={mouse} />}
