@@ -2,15 +2,18 @@
 // Active only when state.locked === true (tile layer is inert).
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  hexCenter, hexPoints, nearestHex, hexDistance, HEX_SIZE,
+  hexCenter, hexPoints, nearestHex, hexDistance, hexLineSteps, HEX_SIZE,
   GRID_COLS, GRID_ROWS,
 } from '../hex/coords.js';
+import {
+  isShipPlaceable, LOS_BLOCKING_TERRAIN, TARGET_EXCLUDE_TERRAIN,
+} from '../state/store.js';
 
 const ARC_RANGE = 4;
 
-const TOKEN_SIZE = HEX_SIZE * 0.50;
+export const TOKEN_SIZE = HEX_SIZE * 0.72;
 
-const FACTION = {
+export const FACTION = {
   blue: { fill: '#1c3a5e', stroke: '#0a1a2e', accent: '#dbe6f3', text: '#f4f7fb' },
   red:  { fill: '#9a2a2c', stroke: '#511518', accent: '#f3e6d4', text: '#fbf0e0' },
 };
@@ -33,9 +36,22 @@ function inHexPosition(col, row, slot, total) {
   return { x: c.x + d.dx * off, y: c.y + d.dy * off };
 }
 
-function ShipToken({ ship, x, y, selected, ghosted, onPointerDown, locked }) {
+// Inset of the X firing-arc lines from the token corners.
+const X_INSET = 2.5;
+
+// Render a single ship token. Square body, corner-to-corner X dividing it into
+// 4 firing-arc quadrants (top=fore, bottom=aft, left/right=broadsides), bow
+// chevron in the top quadrant, large class+number label centered. When
+// `ship.suppressed` is true a translucent dark overlay is drawn on top.
+export function ShipToken({ ship, x, y, selected, ghosted, onPointerDown, locked, mini }) {
   const s = FACTION[ship.faction];
-  const half = TOKEN_SIZE / 2;
+  const size = mini ? TOKEN_SIZE * 0.85 : TOKEN_SIZE;
+  const half = size / 2;
+  const labelW = size * 0.58;
+  const labelH = size * 0.42;
+  const chevX = size * 0.18;
+  const chevTopY = -half + size * 0.06;
+  const chevBaseY = -half + size * 0.22;
   return (
     <g
       transform={`translate(${x.toFixed(2)},${y.toFixed(2)})`}
@@ -46,45 +62,113 @@ function ShipToken({ ship, x, y, selected, ghosted, onPointerDown, locked }) {
         pointerEvents: locked ? 'auto' : 'none',
       }}
     >
-      <rect
-        x={-half + 1.2} y={-half + 1.8}
-        width={TOKEN_SIZE} height={TOKEN_SIZE}
-        rx="2"
-        fill="rgba(8, 12, 20, 0.55)"
-      />
+      {/* Drop shadow */}
+      {!mini && (
+        <rect
+          x={-half + 1.2} y={-half + 1.8}
+          width={size} height={size}
+          rx="2"
+          fill="rgba(8, 12, 20, 0.55)"
+        />
+      )}
       <g transform={`rotate(${ship.facing})`}>
+        {/* Body */}
         <rect
           x={-half} y={-half}
-          width={TOKEN_SIZE} height={TOKEN_SIZE}
-          rx="1.8"
+          width={size} height={size}
+          rx="2"
           fill={s.fill}
           stroke={selected ? SELECT_OUTLINE : s.stroke}
-          strokeWidth={selected ? 2.2 : 1.1}
+          strokeWidth={selected ? 2.4 : 1.2}
         />
+        {/* X firing arcs — corner to corner, divides token into top/right/bottom/left quadrants */}
+        <line
+          x1={-half + X_INSET} y1={-half + X_INSET}
+          x2={half - X_INSET}  y2={half - X_INSET}
+          stroke={s.accent} strokeWidth={0.9} opacity={0.55}
+        />
+        <line
+          x1={half - X_INSET}  y1={-half + X_INSET}
+          x2={-half + X_INSET} y2={half - X_INSET}
+          stroke={s.accent} strokeWidth={0.9} opacity={0.55}
+        />
+        {/* Bow chevron in the top (fore) quadrant */}
         <polygon
-          points={`0,${(-half + 0.6).toFixed(2)} ${(-3.2).toFixed(2)},${(-half + 4.6).toFixed(2)} ${(3.2).toFixed(2)},${(-half + 4.6).toFixed(2)}`}
+          points={`0,${chevTopY.toFixed(2)} ${(-chevX).toFixed(2)},${chevBaseY.toFixed(2)} ${chevX.toFixed(2)},${chevBaseY.toFixed(2)}`}
           fill={s.accent}
+          stroke={s.stroke}
+          strokeWidth={0.5}
         />
+        {/* Counter-rotated label so text reads upright at any facing */}
         <g transform={`rotate(${-ship.facing})`}>
+          <rect
+            x={-labelW / 2} y={-labelH / 2 + 1.5}
+            width={labelW} height={labelH}
+            rx="1.5"
+            fill={s.fill}
+            stroke={s.stroke}
+            strokeWidth={0.4}
+            opacity={0.95}
+          />
           <text
-            x="0" y="0.5"
-            fontSize={TOKEN_SIZE * 0.32}
+            x="0" y={2}
+            fontSize={size * 0.42}
             fontFamily="ui-sans-serif, system-ui, sans-serif"
-            fontWeight="700"
+            fontWeight={700}
             fill={s.text}
             textAnchor="middle"
             dominantBaseline="middle"
             style={{ userSelect: 'none', pointerEvents: 'none' }}
           >
-            {ship.id}
+            {ship.label || ship.id}
           </text>
         </g>
       </g>
+      {/* Suppression overlay — flipped to "shaded" side */}
+      {ship.suppressed && (
+        <>
+          <rect
+            x={-half} y={-half}
+            width={size} height={size}
+            rx="2"
+            fill="rgba(8, 10, 18, 0.55)"
+            pointerEvents="none"
+          />
+          <text
+            x={half - 2} y={half - 2}
+            fontSize={size * 0.22}
+            fontFamily="ui-sans-serif, system-ui, sans-serif"
+            fontWeight={700}
+            fill="#fde68a"
+            textAnchor="end"
+            dominantBaseline="alphabetic"
+            style={{ userSelect: 'none', pointerEvents: 'none' }}
+          >
+            SUP
+          </text>
+        </>
+      )}
     </g>
   );
 }
 
-function FiringArcs({ ship }) {
+// LoS reaches target iff every intermediate hex along the line is clear of
+// blocking terrain. The target hex itself is not checked here — fog targets
+// must remain visible per the "first fog hex is targetable" rule, while
+// island/coastline targets are filtered upstream via TARGET_EXCLUDE_TERRAIN.
+function losReaches(terrain, c1, r1, c2, r2) {
+  if (c1 === c2 && r1 === r2) return true;
+  const steps = hexLineSteps(c1, r1, c2, r2);
+  for (let i = 1; i < steps.length - 1; i++) {
+    for (const h of steps[i]) {
+      const t = terrain[`${h.col},${h.row}`];
+      if (t && LOS_BLOCKING_TERRAIN.has(t.type)) return false;
+    }
+  }
+  return true;
+}
+
+function FiringArcs({ ship, terrain }) {
   if (ship.col === null) return null;
   const shipPx = hexCenter(ship.col, ship.row);
   const bow = ship.facing;
@@ -95,18 +179,24 @@ function FiringArcs({ ship }) {
     for (let c = 0; c < GRID_COLS; c++) {
       if (c === ship.col && r === ship.row) continue;
       if (hexDistance(ship.col, ship.row, c, r) > ARC_RANGE) continue;
+      const tt = terrain[`${c},${r}`];
+      if (tt && TARGET_EXCLUDE_TERRAIN.has(tt.type)) continue;
       const px = hexCenter(c, r);
       const dx = px.x - shipPx.x;
       const dy = px.y - shipPx.y;
       let angle = Math.atan2(dx, -dy) * 180 / Math.PI;
       angle = (angle + 360) % 360;
       const rel = (angle - bow + 360) % 360;
+      let bucket = null;
       if (rel < EPS || rel > 360 - EPS || Math.abs(rel - 180) < EPS) {
-        foreAft.push({ col: c, row: r });
+        bucket = foreAft;
       } else if ((rel >= 60 - EPS && rel <= 120 + EPS) ||
                  (rel >= 240 - EPS && rel <= 300 + EPS)) {
-        broadside.push({ col: c, row: r });
+        bucket = broadside;
       }
+      if (!bucket) continue;
+      if (!losReaches(terrain, ship.col, ship.row, c, r)) continue;
+      bucket.push({ col: c, row: r });
     }
   }
   const fillHex = (col, row, fill, key) => {
@@ -124,7 +214,8 @@ function FiringArcs({ ship }) {
 }
 
 export default function ShipLayer({ state, dispatch, toSvgPoint, svgRef }) {
-  const { ships, selectedShipId, locked } = state;
+  const { ships, selectedShipId, locked, terrain } = state;
+  const terrainMap = terrain || {};
   const [drag, setDrag] = useState(null);
   // drag = { id, startX, startY, currentX, currentY, didMove }
 
@@ -181,7 +272,7 @@ export default function ShipLayer({ state, dispatch, toSvgPoint, svgRef }) {
         if (hex) {
           const occupants = ships.filter(s =>
             s.col === hex.col && s.row === hex.row && s.id !== d.id).length;
-          if (occupants < 4) {
+          if (occupants < 4 && isShipPlaceable(terrainMap, hex.col, hex.row)) {
             dispatch({ type: 'PLACE_SHIP', id: d.id, col: hex.col, row: hex.row });
           }
         }
@@ -194,7 +285,7 @@ export default function ShipLayer({ state, dispatch, toSvgPoint, svgRef }) {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [drag, ships, dispatch, toSvgPoint, svgRef]);
+  }, [drag, ships, dispatch, toSvgPoint, svgRef, terrainMap]);
 
   // Q/E rotation hotkeys
   useEffect(() => {
@@ -206,6 +297,8 @@ export default function ShipLayer({ state, dispatch, toSvgPoint, svgRef }) {
         dispatch({ type: 'ROTATE_SHIP', id: selectedShipId, delta: -60 });
       } else if (e.key === 'e' || e.key === 'E') {
         dispatch({ type: 'ROTATE_SHIP', id: selectedShipId, delta: +60 });
+      } else if (e.key === 'f' || e.key === 'F') {
+        dispatch({ type: 'TOGGLE_SUPPRESSED', id: selectedShipId });
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         dispatch({ type: 'RETURN_SHIP_TO_RESERVE', id: selectedShipId });
       }
@@ -230,12 +323,13 @@ export default function ShipLayer({ state, dispatch, toSvgPoint, svgRef }) {
     if (!hex) return null;
     const others = ships.filter(s =>
       s.col === hex.col && s.row === hex.row && s.id !== drag.id);
-    return { col: hex.col, row: hex.row, valid: others.length < 4 };
-  }, [drag, ships]);
+    const placeable = isShipPlaceable(terrainMap, hex.col, hex.row);
+    return { col: hex.col, row: hex.row, valid: others.length < 4 && placeable };
+  }, [drag, ships, terrainMap]);
 
   return (
     <g>
-      {showArcs && <FiringArcs ship={selectedShip} />}
+      {showArcs && <FiringArcs ship={selectedShip} terrain={terrainMap} />}
       {dragHover && (() => {
         const c = hexCenter(dragHover.col, dragHover.row);
         return (

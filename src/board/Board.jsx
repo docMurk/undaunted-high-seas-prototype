@@ -13,6 +13,7 @@ import {
 import Tile from '../tiles/Tile.jsx';
 import { tileOverlapsAny } from '../state/store.js';
 import ShipLayer from '../ships/ShipLayer.jsx';
+import { useZoomPan } from './useZoomPan.js';
 
 const BOARD_VIEW_W = BOARD_WIDTH_PX + BOARD_PAD * 2;
 const BOARD_VIEW_H = BOARD_HEIGHT_PX + BOARD_PAD * 2;
@@ -22,6 +23,9 @@ export default function Board({
 }) {
   const internalRef = useRef(null);
   const svgRef = svgRefProp || internalRef;
+  const { viewBox } = useZoomPan({
+    svgRef, enabled: state.locked, viewW: BOARD_VIEW_W, viewH: BOARD_VIEW_H,
+  });
 
   const toSvgPoint = useCallback((clientX, clientY) => {
     const svg = svgRef.current;
@@ -214,7 +218,7 @@ export default function Board({
     <div className="relative bg-slate-950 rounded-lg ring-1 ring-slate-800 p-2">
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${BOARD_VIEW_W} ${BOARD_VIEW_H}`}
+        viewBox={viewBox}
         width={BOARD_VIEW_W}
         height={BOARD_VIEW_H}
         onPointerDown={onSvgPointerDown}

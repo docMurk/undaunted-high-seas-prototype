@@ -1,6 +1,6 @@
 // Paint-mode board: 90 paintable hexes. Click + drag with active brush to
-// paint terrain or toggle forts. Off-tile corner hexes render as out-of-play
-// (subtle dashed outline, non-interactive).
+// paint terrain or toggle forts. When locked, painting is suspended and the
+// ShipLayer takes over for ship deployment / interaction (mirrors tile mode).
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   hexCenter, hexPoints,
@@ -8,12 +8,13 @@ import {
   GRID_COLS, GRID_ROWS,
 } from '../hex/coords.js';
 import { TERRAIN_COLORS } from '../tiles/TerrainPalette.jsx';
+import ShipLayer from '../ships/ShipLayer.jsx';
+import { useZoomPan } from './useZoomPan.js';
 
 const BOARD_VIEW_W = BOARD_WIDTH_PX + BOARD_PAD * 2;
 const BOARD_VIEW_H = BOARD_HEIGHT_PX + BOARD_PAD * 2;
 
 function FortGlyph({ cx, cy }) {
-  // Small crenellated mark: a square base with three battlements.
   const s = 7;
   const x0 = cx - s, y0 = cy - s + 2;
   return (
@@ -26,12 +27,27 @@ function FortGlyph({ cx, cy }) {
   );
 }
 
-export default function TerrainBoard({ state, dispatch }) {
-  const svgRef = useRef(null);
+export default function TerrainBoard({ state, dispatch, svgRef: svgRefProp }) {
+  const internalRef = useRef(null);
+  const svgRef = svgRefProp || internalRef;
   const [painting, setPainting] = useState(false);
-  // Track last painted hex during a drag so we don't dispatch repeats — esp.
-  // important for the fort brush which toggles on each apply.
   const lastPaintedRef = useRef(null);
+
+  const locked = state.locked;
+  const { viewBox } = useZoomPan({
+    svgRef, enabled: locked, viewW: BOARD_VIEW_W, viewH: BOARD_VIEW_H,
+  });
+
+  const toSvgPoint = useCallback((clientX, clientY) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const sp = pt.matrixTransform(ctm.inverse());
+    return { x: sp.x, y: sp.y };
+  }, [svgRef]);
 
   const paintHex = useCallback((col, row) => {
     const key = `${col},${row}`;
@@ -40,7 +56,6 @@ export default function TerrainBoard({ state, dispatch }) {
     dispatch({ type: 'PAINT_HEX', col, row });
   }, [dispatch]);
 
-  // Global pointer-up ends the painting drag.
   useEffect(() => {
     if (!painting) return;
     const onUp = () => { setPainting(false); lastPaintedRef.current = null; };
@@ -49,6 +64,7 @@ export default function TerrainBoard({ state, dispatch }) {
   }, [painting]);
 
   const onHexDown = (col, row) => (e) => {
+    if (locked) return;
     e.preventDefault();
     e.stopPropagation();
     setPainting(true);
@@ -58,8 +74,16 @@ export default function TerrainBoard({ state, dispatch }) {
   };
 
   const onHexEnter = (col, row) => () => {
-    if (!painting) return;
+    if (locked || !painting) return;
     paintHex(col, row);
+  };
+
+  // Empty-area click → deselect ship (matches Board behavior when locked).
+  const onSvgPointerDown = (e) => {
+    if (!locked) return;
+    if (e.target === svgRef.current || e.target.dataset?.bgrect === '1') {
+      dispatch({ type: 'SELECT_SHIP', id: null });
+    }
   };
 
   const hexes = [];
@@ -81,7 +105,11 @@ export default function TerrainBoard({ state, dispatch }) {
             strokeWidth="0.8"
             onPointerDown={onHexDown(c, r)}
             onPointerEnter={onHexEnter(c, r)}
-            style={{ cursor: 'crosshair', touchAction: 'none' }}
+            style={{
+              cursor: locked ? 'default' : 'crosshair',
+              touchAction: 'none',
+              pointerEvents: locked ? 'none' : 'auto',
+            }}
           />
           {type === 'fog' && (
             <polygon
@@ -100,9 +128,10 @@ export default function TerrainBoard({ state, dispatch }) {
     <div className="relative bg-slate-950 rounded-lg ring-1 ring-slate-800 p-2">
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${BOARD_VIEW_W} ${BOARD_VIEW_H}`}
+        viewBox={viewBox}
         width={BOARD_VIEW_W}
         height={BOARD_VIEW_H}
+        onPointerDown={onSvgPointerDown}
         style={{ display: 'block', maxWidth: '100%', height: 'auto', touchAction: 'none' }}
       >
         <defs>
@@ -112,8 +141,14 @@ export default function TerrainBoard({ state, dispatch }) {
             <line x1="0" y1="3" x2="6" y2="3" stroke="rgba(241,245,249,0.45)" strokeWidth="1.5" />
           </pattern>
         </defs>
-        <rect x={0} y={0} width={BOARD_VIEW_W} height={BOARD_VIEW_H} fill="#0a1726" />
+        <rect x={0} y={0} width={BOARD_VIEW_W} height={BOARD_VIEW_H} fill="#0a1726" data-bgrect="1" />
         {hexes}
+        <ShipLayer
+          state={state}
+          dispatch={dispatch}
+          toSvgPoint={toSvgPoint}
+          svgRef={svgRef}
+        />
       </svg>
     </div>
   );

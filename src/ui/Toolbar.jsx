@@ -27,7 +27,7 @@ export default function Toolbar({ state, dispatch }) {
           </h1>
           <p className="text-[11px] text-slate-500 mt-0.5">
             {paintMode
-              ? <>{terrainCount} hex{terrainCount === 1 ? '' : 'es'} painted{state.activeMapName ? ` · ${state.activeMapName}` : ''}</>
+              ? <>{terrainCount} hex{terrainCount === 1 ? '' : 'es'} painted{state.activeMapName ? ` · ${state.activeMapName}` : ''} · {state.ships.filter(s=>s.col!==null).length}/{state.ships.length} ships deployed</>
               : <>{placedCount}/18 tiles placed · {state.ships.filter(s=>s.col!==null).length}/{state.ships.length} ships deployed</>}
           </p>
         </div>
@@ -47,7 +47,6 @@ export default function Toolbar({ state, dispatch }) {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {!paintMode && (<>
         <button
           onClick={() => dispatch({ type: state.locked ? 'UNLOCK_TILES' : 'LOCK_TILES' })}
           className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
@@ -56,9 +55,12 @@ export default function Toolbar({ state, dispatch }) {
               : 'bg-emerald-700 hover:bg-emerald-600 text-emerald-50'
           }`}
         >
-          {state.locked ? '🔒 Tiles locked' : '✏️ Edit tiles'}
+          {paintMode
+            ? (state.locked ? '🔒 Map locked' : '🖌 Paint map')
+            : (state.locked ? '🔒 Tiles locked' : '✏️ Edit tiles')}
         </button>
         <div className="h-6 w-px bg-slate-800" />
+        {!paintMode && (<>
         <button
           onClick={() => {
             if (confirm('Regenerate the entire tile palette? Placed tiles are kept.')) {
@@ -99,6 +101,18 @@ export default function Toolbar({ state, dispatch }) {
           className="px-3 py-1.5 rounded-md text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
         >
           Import
+        </button>
+        <div className="h-6 w-px bg-slate-800" />
+        <button
+          onClick={() => dispatch({ type: 'TOGGLE_RULES_PANEL' })}
+          className={`px-3 py-1.5 rounded-md text-sm transition ${
+            state.rulesPanelOpen
+              ? 'bg-slate-700 text-slate-50'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+          }`}
+          title="Toggle ship rules / dice panel"
+        >
+          📖 Rules
         </button>
       </div>
     </div>

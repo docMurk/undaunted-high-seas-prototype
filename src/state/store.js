@@ -15,21 +15,60 @@ export const TERRAIN_TYPES = ['open', 'coastline', 'reef', 'island', 'fog'];
 export const FORT_TYPES = new Set(['coastline', 'island']);
 export const BRUSH_TYPES = [...TERRAIN_TYPES, 'fort'];
 
+// Terrain that ships cannot occupy. Reef is navigable (some ship classes
+// will be restricted later, but not modeled yet).
+export const SHIP_BLOCKING_TERRAIN = new Set(['island', 'coastline']);
+
+// Terrain that interrupts a line of sight ray. Fog blocks beyond it but is
+// itself targetable — caller is responsible for the "first fog visible"
+// rule by walking only intermediate hexes.
+export const LOS_BLOCKING_TERRAIN = new Set(['island', 'coastline', 'fog']);
+
+// Terrain that cannot be a target (no ship can sit on it, nothing to shoot).
+export const TARGET_EXCLUDE_TERRAIN = new Set(['island', 'coastline']);
+
+export function isShipPlaceable(terrain, col, row) {
+  const t = terrain && terrain[`${col},${row}`];
+  return !t || !SHIP_BLOCKING_TERRAIN.has(t.type);
+}
+
 let _instCounter = 1;
 const nextInstanceId = () => `i${_instCounter++}`;
-let _shipCounter = 1;
-const nextShipId = () => `s${_shipCounter++}`;
+
+// Ship class catalog. Order here drives reserve layout.
+export const SHIP_CLASSES = ['sloop', 'frigate', 'capital'];
+const CLASS_PREFIX = { sloop: 'S', frigate: 'F', capital: 'C' };
+const FACTION_PREFIX = { blue: 'B', red: 'R' };
+
+// Build the canonical 18-ship reserve: 2 factions × 3 classes × 3 numbered ships.
+// Internal id is faction-qualified (`B-S1`); display label is the bare code (`S1`).
+export function createInitialShips() {
+  const out = [];
+  let slot = 0;
+  for (const faction of ['blue', 'red']) {
+    for (const cls of SHIP_CLASSES) {
+      for (let n = 1; n <= 3; n++) {
+        out.push({
+          id: `${FACTION_PREFIX[faction]}-${CLASS_PREFIX[cls]}${n}`,
+          label: `${CLASS_PREFIX[cls]}${n}`,
+          class: cls,
+          faction,
+          col: null, row: null,
+          facing: faction === 'blue' ? 180 : 0,
+          paletteSlot: slot++,
+          suppressed: false,
+        });
+      }
+    }
+  }
+  return out;
+}
 
 export function initialState() {
   return {
     palette: generatePalette(),
     placed: [],         // [{ instanceId, tile, col, row, rotation }]
-    ships: [
-      { id: 'HMS-1', faction: 'blue', col: null, row: null, facing: 180, paletteSlot: 0 },
-      { id: 'HMS-2', faction: 'blue', col: null, row: null, facing: 180, paletteSlot: 1 },
-      { id: 'FR-1',  faction: 'red',  col: null, row: null, facing:   0, paletteSlot: 2 },
-      { id: 'FR-2',  faction: 'red',  col: null, row: null, facing:   0, paletteSlot: 3 },
-    ],
+    ships: createInitialShips(),
     selectedTileInstanceId: null,
     selectedShipId: null,
     locked: false,
@@ -37,6 +76,7 @@ export function initialState() {
     terrain: {},           // { "col,row": { type, fort? } }
     activeBrush: 'coastline',
     activeMapName: null,   // name of currently-loaded saved map (if any)
+    rulesPanelOpen: true,
   };
 }
 
@@ -164,15 +204,15 @@ export function reducer(state, action) {
 
     case 'CLEAR_BOARD': {
       return { ...state, placed: [], selectedTileInstanceId: null,
-               ships: state.ships.map((s, i) => ({
-                 ...s, col: null, row: null, paletteSlot: i,
-               })) };
+               selectedShipId: null,
+               ships: createInitialShips() };
     }
 
     case 'PLACE_SHIP': {
       const { id, col, row } = action;
+      if (!isShipPlaceable(state.terrain, col, row)) return state;
       return { ...state, ships: state.ships.map(s =>
-        s.id === id ? { ...s, col, row, paletteSlot: undefined } : s) };
+        s.id === id ? { ...s, col, row } : s) };
     }
 
     case 'MOVE_SHIP': {
@@ -180,14 +220,10 @@ export function reducer(state, action) {
     }
 
     case 'RETURN_SHIP_TO_RESERVE': {
-      const { id } = action;
-      const used = new Set(state.ships
-        .filter(s => s.col === null && s.id !== id)
-        .map(s => s.paletteSlot));
-      let slot = 0;
-      while (used.has(slot)) slot++;
+      // paletteSlot is stable across the ship's lifetime — see createInitialShips.
+      // Returning a ship clears suppression too (reserve = fresh state).
       return { ...state, ships: state.ships.map(s =>
-        s.id === id ? { ...s, col: null, row: null, paletteSlot: slot } : s) };
+        s.id === action.id ? { ...s, col: null, row: null, suppressed: false } : s) };
     }
 
     case 'ROTATE_SHIP': {
@@ -200,24 +236,13 @@ export function reducer(state, action) {
       return { ...state, selectedShipId: action.id, selectedTileInstanceId: null };
     }
 
-    case 'ADD_SHIP': {
-      const { faction } = action;
-      const used = new Set(state.ships
-        .filter(s => s.col === null)
-        .map(s => s.paletteSlot));
-      let slot = 0;
-      while (used.has(slot)) slot++;
-      const id = `${faction === 'blue' ? 'HMS' : 'FR'}-${nextShipId()}`;
-      return { ...state, ships: [...state.ships, {
-        id, faction, col: null, row: null,
-        facing: faction === 'blue' ? 180 : 0,
-        paletteSlot: slot,
-      }] };
+    case 'TOGGLE_SUPPRESSED': {
+      return { ...state, ships: state.ships.map(s =>
+        s.id === action.id ? { ...s, suppressed: !s.suppressed } : s) };
     }
 
-    case 'REMOVE_SHIP': {
-      return { ...state, ships: state.ships.filter(s => s.id !== action.id),
-               selectedShipId: state.selectedShipId === action.id ? null : state.selectedShipId };
+    case 'TOGGLE_RULES_PANEL': {
+      return { ...state, rulesPanelOpen: !state.rulesPanelOpen };
     }
 
     case 'SET_MODE': {
@@ -275,19 +300,26 @@ export function reducer(state, action) {
 
     case 'IMPORT_BOARD': {
       // Defensive: support both old (object map) and new (array) placed shape.
+      // Older saves with mismatched ship rosters are dropped in favor of the
+      // canonical 18-ship reserve.
       const incoming = action.state;
       const placed = Array.isArray(incoming.placed)
         ? incoming.placed
         : []; // older saves are silently dropped
+      const validShips = Array.isArray(incoming.ships)
+        && incoming.ships.length > 0
+        && incoming.ships.every(s => s.class && s.label);
       return {
         ...incoming,
         placed,
+        ships: validShips ? incoming.ships : createInitialShips(),
         terrain: incoming.terrain || {},
         mode: incoming.mode === 'paint' ? 'paint' : 'tile',
         activeBrush: incoming.activeBrush || 'coastline',
         activeMapName: incoming.activeMapName || null,
         selectedTileInstanceId: null,
         selectedShipId: null,
+        rulesPanelOpen: incoming.rulesPanelOpen !== false,
       };
     }
 
