@@ -90,21 +90,27 @@ function ClassCard({ info }) {
   );
 }
 
-function DiceRoller() {
+function DiceRoller({ state, dispatch }) {
   const [count, setCount] = useState(3);
   const [sides, setSides] = useState(10);
-  const [results, setResults] = useState(null);
-  const [history, setHistory] = useState([]);
 
   const roll = () => {
     const out = [];
     for (let i = 0; i < count; i++) {
       out.push(1 + Math.floor(Math.random() * sides));
     }
-    setResults(out);
-    setHistory(h => [{ count, sides, out, ts: Date.now() }, ...h].slice(0, 5));
+    dispatch?.({
+      type: 'ROLL_DICE',
+      roller: state?.localPlayer || null,
+      dice: `${count}d${sides}`,
+      results: out,
+      timestamp: Date.now(),
+    });
   };
 
+  const rolls = (state?.rolls || []).slice().reverse();
+  const last = rolls[0];
+  const results = last ? last.results : null;
   const sum = results ? results.reduce((a, b) => a + b, 0) : 0;
 
   return (
@@ -144,12 +150,12 @@ function DiceRoller() {
           </div>
         </div>
       )}
-      {history.length > 1 && (
+      {rolls.length > 1 && (
         <details className="mt-1.5 text-[10px] text-slate-500">
           <summary className="cursor-pointer hover:text-slate-300">previous</summary>
           <ul className="mt-0.5 space-y-0.5 font-mono">
-            {history.slice(1).map((h, i) => (
-              <li key={i}>{h.count}d{h.sides}: {h.out.join(' ')} (Σ{h.out.reduce((a,b)=>a+b,0)})</li>
+            {rolls.slice(1).map((h) => (
+              <li key={h.id}>{h.dice}: {h.results.join(' ')} (Σ{h.results.reduce((a,b)=>a+b,0)})</li>
             ))}
           </ul>
         </details>
@@ -190,7 +196,7 @@ export default function ShipRulesPanel({ state, dispatch }) {
           </ul>
         </div>
 
-        <DiceRoller />
+        <DiceRoller state={state} dispatch={dispatch} />
 
         <div className="text-[10px] text-slate-500 leading-snug px-1 mt-1">
           Hotkeys (locked map):
