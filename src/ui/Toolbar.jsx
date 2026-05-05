@@ -1,8 +1,87 @@
-// Top toolbar: lock, regenerate palette, clear, export, import.
-import React, { useRef } from 'react';
+// Top toolbar: lock, regenerate palette, clear, export, import + multiplayer
+// controls (room ID, faction LED, sync LED, End Game).
+import React, { useRef, useState } from 'react';
 import { exportBoard, importBoardFromFile } from '../state/serialize.js';
+import { buildRoomShareLink } from '../net/room.js';
+import { isFirebaseConfigured } from '../net/firebase.js';
 
-export default function Toolbar({ state, dispatch }) {
+function FactionLed({ state }) {
+  const localPlayer = state.localPlayer;
+  if (!localPlayer) return null;
+  const fac = state.players?.[localPlayer]?.faction;
+  if (!fac) return null;
+  const info = state.cardData?.factions?.[fac];
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+      <span
+        className="inline-block w-3 h-3 rounded-full ring-1 ring-slate-600"
+        style={{ background: info?.primary || '#888' }}
+      />
+      <span>{info?.label || fac}</span>
+      <span className="text-slate-500">· {localPlayer}</span>
+    </div>
+  );
+}
+
+function SyncLed({ state }) {
+  const map = {
+    offline:    { color: 'bg-slate-500', label: 'offline' },
+    connecting: { color: 'bg-amber-500 animate-pulse', label: 'connecting' },
+    connected:  { color: 'bg-emerald-500', label: 'connected' },
+    error:      { color: 'bg-red-500', label: 'error' },
+  };
+  const info = map[state.syncStatus] || map.offline;
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-slate-400" title={`sync: ${info.label}`}>
+      <span className={`inline-block w-2.5 h-2.5 rounded-full ${info.color}`} />
+      <span>{info.label}</span>
+    </div>
+  );
+}
+
+function RoomBadge({ state, onCreate, onLeave }) {
+  const [copied, setCopied] = useState(false);
+  if (!state.roomId) {
+    return (
+      <button
+        onClick={onCreate}
+        className="px-2 py-1 rounded text-xs bg-slate-800 hover:bg-slate-700 text-slate-200"
+        title={isFirebaseConfigured() ? 'Create a room' : 'Create a room (offline — no sync)'}
+      >
+        + Room
+      </button>
+    );
+  }
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(buildRoomShareLink(state.roomId));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {}
+  };
+  return (
+    <div className="flex items-center gap-1 text-[11px] text-slate-300">
+      <span className="font-mono px-1.5 py-0.5 rounded bg-slate-800 ring-1 ring-slate-700">
+        room {state.roomId}
+      </span>
+      <button
+        onClick={onCopy}
+        className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300"
+        title="Copy join link"
+      >{copied ? '✓ copied' : '📋'}</button>
+      <button
+        onClick={onLeave}
+        className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300"
+        title="Leave room"
+      >×</button>
+    </div>
+  );
+}
+
+export default function Toolbar({
+  state, dispatch,
+  onCreateRoom, onLeaveRoom, onEndGame, onSwitchPlayer, onPickFaction,
+}) {
   const fileInput = useRef(null);
 
   const handleImport = (e) => {
@@ -11,7 +90,7 @@ export default function Toolbar({ state, dispatch }) {
     importBoardFromFile(file)
       .then(s => dispatch({ type: 'IMPORT_BOARD', state: s }))
       .catch(err => alert('Import failed: ' + err.message));
-    e.target.value = ''; // reset
+    e.target.value = '';
   };
 
   const placedCount = state.placed.length;
@@ -19,7 +98,7 @@ export default function Toolbar({ state, dispatch }) {
   const terrainCount = Object.keys(state.terrain || {}).length;
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+    <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 flex-wrap gap-y-1">
       <div className="flex items-center gap-3">
         <div>
           <h1 className="text-base font-semibold text-slate-100">
@@ -46,7 +125,33 @@ export default function Toolbar({ state, dispatch }) {
           >Hex paint</button>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Multiplayer cluster */}
+        <div className="flex items-center gap-2 px-2 py-1 rounded bg-slate-900/80 ring-1 ring-slate-800">
+          <RoomBadge state={state} onCreate={onCreateRoom} onLeave={onLeaveRoom} />
+          <SyncLed state={state} />
+          <FactionLed state={state} />
+          {state.localPlayer ? (
+            <button
+              onClick={onSwitchPlayer}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+              title="Switch player (solo / sandbox)"
+            >switch</button>
+          ) : (
+            <button
+              onClick={onPickFaction}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-amber-700 hover:bg-amber-600 text-amber-50"
+            >pick faction</button>
+          )}
+          {state.localPlayer && state.locked && (
+            <button
+              onClick={onEndGame}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-red-900 hover:bg-red-800 text-red-100"
+            >End game</button>
+          )}
+        </div>
+
         <button
           onClick={() => dispatch({ type: state.locked ? 'UNLOCK_TILES' : 'LOCK_TILES' })}
           className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
@@ -68,9 +173,7 @@ export default function Toolbar({ state, dispatch }) {
             }
           }}
           className="px-3 py-1.5 rounded-md text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-        >
-          Regenerate palette
-        </button>
+        >Regenerate palette</button>
         <button
           onClick={() => {
             if (confirm('Clear all placed tiles and return ships to reserve?')) {
@@ -78,17 +181,13 @@ export default function Toolbar({ state, dispatch }) {
             }
           }}
           className="px-3 py-1.5 rounded-md text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-        >
-          Clear board
-        </button>
+        >Clear board</button>
         </>)}
         <div className="h-6 w-px bg-slate-800" />
         <button
           onClick={() => exportBoard(state)}
           className="px-3 py-1.5 rounded-md text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-        >
-          Export
-        </button>
+        >Export</button>
         <input
           ref={fileInput}
           type="file"
@@ -99,9 +198,7 @@ export default function Toolbar({ state, dispatch }) {
         <button
           onClick={() => fileInput.current?.click()}
           className="px-3 py-1.5 rounded-md text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-        >
-          Import
-        </button>
+        >Import</button>
         <div className="h-6 w-px bg-slate-800" />
         <button
           onClick={() => dispatch({ type: 'TOGGLE_RULES_PANEL' })}
@@ -111,9 +208,7 @@ export default function Toolbar({ state, dispatch }) {
               : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
           }`}
           title="Toggle ship rules / dice panel"
-        >
-          📖 Rules
-        </button>
+        >📖 Rules</button>
       </div>
     </div>
   );

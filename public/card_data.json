@@ -1,0 +1,316 @@
+{
+  "factions": {
+    "british": {
+      "primary": "#8B2D2D",
+      "secondary": "#6B1D1D",
+      "accent": "#F5F0E1",
+      "label": "British"
+    },
+    "french": {
+      "primary": "#3D5A80",
+      "secondary": "#2B4060",
+      "accent": "#E8D5A3",
+      "label": "French"
+    },
+    "neutral": {
+      "primary": "#3B6B3B",
+      "secondary": "#2A4F2A",
+      "accent": "#E8F0E0",
+      "label": "Neutral"
+    }
+  },
+  "cards": [
+    {
+      "id": "british_sloop_maneuver_a",
+      "faction": "british",
+      "type": "combat",
+      "name": "MANEUVER",
+      "init": 4,
+      "def": 3,
+      "squad": "A",
+      "actions": [
+        { "name": "Steer", "value": "1" },
+        { "name": "Broadside", "value": "4", "range": "1-2", "arc": "broadside", "dice": "d10" }
+      ],
+      "flavor_name": "HMS Sparrowhawk",
+      "art_file": null
+    },
+    {
+      "id": "british_sloop_maneuver_b",
+      "faction": "british",
+      "type": "combat",
+      "name": "MANEUVER",
+      "init": 4,
+      "def": 3,
+      "squad": "A",
+      "actions": [
+        { "name": "Steer", "value": "1" },
+        { "name": "Broadside", "value": "4", "range": "1-2", "arc": "broadside", "dice": "d10" }
+      ],
+      "flavor_name": "HMS Sparrowhawk",
+      "art_file": null
+    },
+    {
+      "id": "british_frigate_broadside",
+      "faction": "british",
+      "type": "combat",
+      "name": "BROADSIDE",
+      "init": 3,
+      "def": 4,
+      "squad": "B",
+      "actions": [
+        { "name": "Broadside", "value": "6", "range": "1-3", "arc": "broadside", "dice": "d10" }
+      ],
+      "flavor_name": "HMS Surprise",
+      "art_file": null
+    },
+    {
+      "id": "british_frigate_chain_shot",
+      "faction": "british",
+      "type": "combat",
+      "name": "CHAIN SHOT",
+      "init": 3,
+      "def": 4,
+      "squad": "B",
+      "actions": [
+        { "name": "Chain Shot", "value": "3", "range": "1-2", "arc": "broadside", "dice": "d8" },
+        { "name": "Suppress", "value": "+1" }
+      ],
+      "flavor_name": "HMS Surprise",
+      "art_file": null
+    },
+    {
+      "id": "british_capital_order",
+      "faction": "british",
+      "type": "command",
+      "name": "ORDER",
+      "init": 7,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Order", "value": "1" },
+        { "name": "Inspire", "value": "2" }
+      ],
+      "flavor_name": "Admiral Nelson",
+      "art_file": null
+    },
+    {
+      "id": "british_capital_bolster",
+      "faction": "british",
+      "type": "command",
+      "name": "BOLSTER",
+      "init": 6,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Bolster", "value": "3" },
+        { "name": "Signal", "value": "1" }
+      ],
+      "flavor_name": "Admiral Nelson",
+      "art_file": null
+    },
+    {
+      "id": "british_tumult_squall",
+      "faction": "british",
+      "type": "tumult",
+      "name": "SQUALL",
+      "init": 1,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Tumult", "value": "Reduce all speeds by 1 this round." }
+      ],
+      "flavor_name": "Atlantic Squall",
+      "art_file": null
+    },
+    {
+      "id": "british_vehicle_sloop",
+      "faction": "british",
+      "type": "vehicle",
+      "name": "SLOOP",
+      "init": 5,
+      "def": 3,
+      "squad": null,
+      "actions": [
+        { "name": "Maneuver", "value": "3" },
+        { "name": "Chasers", "value": "1", "range": "1", "arc": "fore", "dice": "d8" }
+      ],
+      "flavor_name": "HMS Sparrowhawk",
+      "art_file": null
+    },
+    {
+      "id": "french_sloop_maneuver_a",
+      "faction": "french",
+      "type": "combat",
+      "name": "MANEUVER",
+      "init": 5,
+      "def": 3,
+      "squad": "A",
+      "actions": [
+        { "name": "Steer", "value": "1" },
+        { "name": "Broadside", "value": "4", "range": "1-2", "arc": "broadside", "dice": "d10" }
+      ],
+      "flavor_name": "Le Hirondelle",
+      "art_file": null
+    },
+    {
+      "id": "french_sloop_maneuver_b",
+      "faction": "french",
+      "type": "combat",
+      "name": "MANEUVER",
+      "init": 5,
+      "def": 3,
+      "squad": "A",
+      "actions": [
+        { "name": "Steer", "value": "1" },
+        { "name": "Broadside", "value": "4", "range": "1-2", "arc": "broadside", "dice": "d10" }
+      ],
+      "flavor_name": "Le Hirondelle",
+      "art_file": null
+    },
+    {
+      "id": "french_frigate_broadside",
+      "faction": "french",
+      "type": "combat",
+      "name": "BROADSIDE",
+      "init": 3,
+      "def": 4,
+      "squad": "B",
+      "actions": [
+        { "name": "Broadside", "value": "6", "range": "1-3", "arc": "broadside", "dice": "d10" }
+      ],
+      "flavor_name": "La Surprise",
+      "art_file": null
+    },
+    {
+      "id": "french_frigate_chain_shot",
+      "faction": "french",
+      "type": "combat",
+      "name": "CHAIN SHOT",
+      "init": 3,
+      "def": 4,
+      "squad": "B",
+      "actions": [
+        { "name": "Chain Shot", "value": "3", "range": "1-2", "arc": "broadside", "dice": "d8" },
+        { "name": "Suppress", "value": "+1" }
+      ],
+      "flavor_name": "La Surprise",
+      "art_file": null
+    },
+    {
+      "id": "french_capital_order",
+      "faction": "french",
+      "type": "command",
+      "name": "ORDER",
+      "init": 7,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Order", "value": "1" },
+        { "name": "Inspire", "value": "2" }
+      ],
+      "flavor_name": "Amiral Villeneuve",
+      "art_file": null
+    },
+    {
+      "id": "french_capital_bolster",
+      "faction": "french",
+      "type": "command",
+      "name": "BOLSTER",
+      "init": 6,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Bolster", "value": "3" },
+        { "name": "Signal", "value": "1" }
+      ],
+      "flavor_name": "Amiral Villeneuve",
+      "art_file": null
+    },
+    {
+      "id": "french_tumult_calm",
+      "faction": "french",
+      "type": "tumult",
+      "name": "BECALMED",
+      "init": 1,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Tumult", "value": "All ships at speed 0 this round." }
+      ],
+      "flavor_name": "Doldrums",
+      "art_file": null
+    },
+    {
+      "id": "french_vehicle_sloop",
+      "faction": "french",
+      "type": "vehicle",
+      "name": "SLOOP",
+      "init": 5,
+      "def": 3,
+      "squad": null,
+      "actions": [
+        { "name": "Maneuver", "value": "3" },
+        { "name": "Chasers", "value": "1", "range": "1", "arc": "fore", "dice": "d8" }
+      ],
+      "flavor_name": "Le Hirondelle",
+      "art_file": null
+    },
+    {
+      "id": "neutral_fog_bank",
+      "faction": "neutral",
+      "type": "tumult",
+      "name": "FOG BANK",
+      "init": 2,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Tumult", "value": "Place a fog hex on any open water hex." }
+      ],
+      "flavor_name": "Channel Fog",
+      "art_file": null
+    },
+    {
+      "id": "neutral_merchant",
+      "faction": "neutral",
+      "type": "vehicle",
+      "name": "MERCHANT",
+      "init": 4,
+      "def": 2,
+      "squad": null,
+      "actions": [
+        { "name": "Maneuver", "value": "2" }
+      ],
+      "flavor_name": "East Indiaman",
+      "art_file": null
+    },
+    {
+      "id": "neutral_reference_arcs",
+      "faction": "neutral",
+      "type": "reference",
+      "name": "FIRING ARCS",
+      "init": null,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Reference", "value": "Broadside (port/starboard) · Fore chasers · Aft chasers" }
+      ],
+      "flavor_name": "Reference",
+      "art_file": null
+    },
+    {
+      "id": "neutral_reference_dice",
+      "faction": "neutral",
+      "type": "reference",
+      "name": "TO HIT",
+      "init": null,
+      "def": null,
+      "squad": null,
+      "actions": [
+        { "name": "Reference", "value": "Cannons: roll X dice >= Range + Defense + speed" }
+      ],
+      "flavor_name": "Reference",
+      "art_file": null
+    }
+  ]
+}

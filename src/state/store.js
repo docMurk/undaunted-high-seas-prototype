@@ -10,6 +10,11 @@ import { generatePalette, generateTile, nextTileId } from '../tiles/generator.js
 import {
   GRID_COLS, GRID_ROWS, tileOccupiedHexes, tileFitsInGrid,
 } from '../hex/coords.js';
+import {
+  EMPTY_ZONES, moveCard, flipCard, drawToHandSize, reshuffle, setDeck, setPlayer,
+} from './cardActions.js';
+import { rollDice, clearRolls } from './rollActions.js';
+import { endGame, resumeGame, setLocalPlayer, setRoomId } from './gameActions.js';
 
 export const TERRAIN_TYPES = ['open', 'coastline', 'reef', 'island', 'fog'];
 export const FORT_TYPES = new Set(['coastline', 'island']);
@@ -77,7 +82,24 @@ export function initialState() {
     activeBrush: 'coastline',
     activeMapName: null,   // name of currently-loaded saved map (if any)
     rulesPanelOpen: true,
+    // Multiplayer / cards slices (PRD §Architecture).
+    players: { p1: null, p2: null },     // { clientId, faction }
+    zones: { p1: EMPTY_ZONES(), p2: EMPTY_ZONES() },
+    playArea: [],
+    rolls: [],
+    gameOver: false,
+    roomId: null,
+    localPlayer: null,                   // 'p1' | 'p2' | null (solo/sandbox)
+    syncStatus: 'offline',               // 'offline' | 'connecting' | 'connected' | 'error'
+    cardData: null,                      // public/card_data.json payload, lazy-loaded
   };
+}
+
+// Switch which side the local client is acting as. Useful for solo
+// sandboxing (Phase 1 'switch player' debug toggle) and for the faction
+// picker before any networking comes online.
+export function withLocalPlayer(state, player) {
+  return setLocalPlayer(state, { player });
 }
 
 // True if a tile with given (col, row, rotation) overlaps any placed tile
@@ -321,6 +343,28 @@ export function reducer(state, action) {
         selectedShipId: null,
         rulesPanelOpen: incoming.rulesPanelOpen !== false,
       };
+    }
+
+    // ───── Card / multiplayer actions (PRD §Action protocol) ─────
+    case 'MOVE_CARD':         return moveCard(state, action);
+    case 'FLIP_CARD':         return flipCard(state, action);
+    case 'DRAW_TO_HAND_SIZE': return drawToHandSize(state, action);
+    case 'RESHUFFLE':         return reshuffle(state, action);
+    case 'SET_DECK':          return setDeck(state, action);
+    case 'SET_PLAYER':        return setPlayer(state, action);
+    case 'ROLL_DICE':         return rollDice(state, action);
+    case 'CLEAR_ROLLS':       return clearRolls(state);
+    case 'END_GAME':          return endGame(state);
+    case 'RESUME_GAME':       return resumeGame(state);
+    case 'SET_LOCAL_PLAYER':  return setLocalPlayer(state, action);
+    case 'SET_ROOM_ID':       return setRoomId(state, action);
+    case 'SET_SYNC_STATUS':   return { ...state, syncStatus: action.status || 'offline' };
+    case 'SET_CARD_DATA':     return { ...state, cardData: action.data };
+    case 'APPLY_REMOTE_PATCH': {
+      // Merge inbound shared subtrees from Firebase. Caller is responsible
+      // for filtering to disjoint paths.
+      const patch = action.patch || {};
+      return { ...state, ...patch };
     }
 
     default:

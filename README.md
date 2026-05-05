@@ -1,6 +1,6 @@
 # Undaunted: High Seas — Prototype Sandbox
 
-Interactive prototyping platform for *Undaunted: High Seas*, a fan adaptation of [Undaunted: Battle of Britain](https://boardgamegeek.com/boardgame/353545/undaunted-battle-of-britain) for age-of-sail naval combat. Not a playable game — a sandbox for testing board geometry, terrain authoring, ship placement, and firing-arc readability while the rules are still in flux.
+Interactive prototyping platform for *Undaunted: High Seas*, a fan adaptation of [Undaunted: Battle of Britain](https://boardgamegeek.com/boardgame/353545/undaunted-battle-of-britain) for age-of-sail naval combat. Two-player remotely-playable browser game once a card set is dropped in — board, ship, terrain, and card systems are all wired; rule resolution is socially managed (engine never enforces phase, turn, or initiative).
 
 **Live demo:** https://docmurk.github.io/undaunted-high-seas-prototype/
 
@@ -39,7 +39,47 @@ A collapsible right-side panel (toolbar **📖 Rules** button, or `×` in the pa
 
 - Per-class stat block (Maneuver, Defense, Broadside, Chasers) plus class actions and traits — Sloop/Frigate/Capital.
 - General to-hit rules (cannons, boarding, raking) and general actions (Fire, Haul sails, Maneuver).
-- A **dice roller**: pick pool size (1–20) and die size (d4 / d6 / d8 / d10 / d12 / d20), click **Roll**. Results show the individual dice, sum, max, and min, with a small history of recent rolls. Use it to resolve attacks manually — the app does not model damage.
+- A **dice roller**: pick pool size (1–20) and die size (d4 / d6 / d8 / d10 / d12 / d20), click **Roll**. Results show the individual dice, sum, max, and min, with a small history of recent rolls. Rolls are dispatched through the reducer and synced to both players via the shared roll log (last 10).
+
+## Cards, hands, zones — the digital build
+
+Once the map is locked **and** a faction is claimed, the editor surfaces the full card UI:
+
+- **Hand** — bottom-pinned 3-card strip. Hotkeys `1` / `2` / `3` select; `Z` opens a large view-only modal on the selected card. Click the **Deck** mini to draw to hand size (3); auto-reshuffles the discard back into the deck when empty.
+- **Play area** — free-form 2D overlay above the board. Drop any card anywhere by `(x, y)` to indicate ship assignment. Hold **Shift** on drop to place face-down (initiative bid, set-aside, etc.); double-click to flip.
+- **Zone panel (right)** — tabs for own **Supply / Discard / Removed / Set aside** + the synced roll log. Drop targets accept cards from any zone. The Removed tab surfaces the BoB p.20 casualty-priority hint (hand → discard → deck) — guidance only, not enforcement.
+- **Opponent strip (top)** — opponent's deck count, discard top, supply (face-up titles), removed/set-aside back-counts. View-only; face-down cards arrive without their `cardId`.
+
+Card data lives in `public/card_data.json` (Medieval-hack schema, instance-based: three copies = three entries). A placeholder set ships with the repo so the engine is testable without finalized card design. Drop in a real `card_data.json` and nothing else needs to change.
+
+Hidden information is one mechanism: every card has `faceUp: bool`. Face-down cards in shared state carry `cardId: null`; the owner client keeps the real id in `localStorage["highSeas:<roomId>:cardMap"]`. Refresh mid-game rejoins cleanly.
+
+## Multiplayer — Firebase sync + room flow
+
+Two players each open the same `?room=<id>` link and play. No auth, no matchmaking — the room ID is the secret.
+
+1. Click **+ Room** in the toolbar. The URL gets a `?room=<id>` query param; copy the link (📋) and send it.
+2. Each side opens the link, picks a faction (British or French), and the client builds its own deck on claim — filtered by faction (plus neutrals), shuffled locally, written to `localStorage`. Only `deck.length` is published.
+3. The toolbar shows: room badge, sync LED (offline / connecting / connected / error), and faction LED (filled with `factions.<faction>.primary` from `card_data.json`).
+4. Solo / sandbox use: clicking **switch** flips which side you're acting as — useful for testing both hands locally.
+5. **End game** freezes the room (a Resume button is provided to recover). Recovery from disconnect is out of scope by design — manage it socially.
+
+**Trusted-clients model**: clients trust each other; cheating is a social problem. The engine never enforces phase, turn order, draw timing, casualty selection, or round structure — players manage flow. Last-writer-wins on shared paths (`playArea`, `rolls`, `placed`, `terrain`, `ships`); concurrent writes to disjoint paths merge cleanly via Firebase RTDB's per-key merge.
+
+### Configuring Firebase
+
+The sync layer is lazy-loaded — without config, the app runs fully solo (no networking, no errors). To enable multiplayer, supply Firebase Realtime Database credentials at build/dev time:
+
+```bash
+# .env.local (gitignored)
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_DATABASE_URL=https://<your-project>-default-rtdb.firebaseio.com
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+Or inject at runtime via `window.__firebaseConfig = {...}` before the app boots. The free tier covers two players forever.
 
 ## Firing arcs & line of sight
 
@@ -88,31 +128,53 @@ Vite prints a local URL (typically `http://localhost:5173/undaunted-high-seas-pr
 
 ## Stack
 
-- React 19 with `useReducer` for board state
+- React 19 with `useReducer` for board, ship, and card state
 - Vite + Tailwind v4
 - SVG for the board, tokens, terrain layer, and arc overlay — no canvas, no images
-- localStorage for saved terrain maps; JSON Export/Import for full board snapshots
+- HTML5 drag-and-drop for cards (one `<Card>` component reused across hand, zones, play area, opponent strip)
+- Firebase Realtime Database for two-player sync via patch-writes (`update()`); lazy-loaded so the app runs solo without config
+- localStorage for saved terrain maps, owner-private deck order, and the face-down `cardKey → cardId` map; JSON Export/Import for full board + zones snapshots (format v2)
 
 ## Project layout
 
 ```
 src/
-  Editor.jsx           top-level layout, branches on mode, sidebar collapse
-  hex/coords.js        odd-q offset hex math, tile geometry, distance, hex-line walker
-  state/store.js       reducer + action types, terrain & LoS rules, isShipPlaceable
-  state/serialize.js   JSON export / import
-  state/maps.js        named terrain maps in localStorage
-  board/Board.jsx          tile-mode board (placement + ship layer)
-  board/TerrainBoard.jsx   paint-mode board (paints when unlocked, hosts ships when locked)
-  board/useZoomPan.js      cursor-anchored wheel zoom + right-drag pan, active when locked
-  tiles/TilePalette.jsx    tile-mode palette + thumbnails
-  tiles/TerrainPalette.jsx paint-mode palette + saved-maps panel
-  ships/ShipLayer.jsx      ship rendering, drag, rotate, suppressed flip, LoS-aware firing arcs
-  ships/ShipReserve.jsx    off-board ship reserve (18 fixed ships, faction-grouped)
-  ships/ShipRulesPanel.jsx collapsible right panel: class stats + dice roller
-  ui/Toolbar.jsx           mode toggle, lock, export/import, rules-panel toggle
+  Editor.jsx                 top-level layout, mode + lock branching, multiplayer plumbing
+  hex/coords.js              odd-q offset hex math, tile geometry, distance, hex-line walker
+  state/store.js             reducer + action types, terrain & LoS rules, isShipPlaceable
+  state/serialize.js         JSON export / import (v2 includes card slices)
+  state/cardActions.js       MOVE_CARD, FLIP_CARD, DRAW_TO_HAND_SIZE, RESHUFFLE, SET_DECK, SET_PLAYER
+  state/rollActions.js       ROLL_DICE (synced log, capped at 10)
+  state/gameActions.js       END_GAME, room/player metadata
+  state/maps.js              named terrain maps in localStorage
+  board/Board.jsx                tile-mode board (placement + ship layer)
+  board/TerrainBoard.jsx         paint-mode board (paints unlocked, hosts ships locked)
+  board/useZoomPan.js            cursor-anchored wheel zoom + right-drag pan, active when locked
+  tiles/TilePalette.jsx          tile-mode palette + thumbnails
+  tiles/TerrainPalette.jsx       paint-mode palette + saved-maps panel
+  ships/ShipLayer.jsx            ship rendering, drag, rotate, suppressed flip, LoS-aware firing arcs
+  ships/ShipReserve.jsx          off-board ship reserve (18 fixed ships, faction-grouped)
+  ships/ShipRulesPanel.jsx       collapsible right panel: class stats + dice roller (dispatches ROLL_DICE)
+  cards/data.js                  load card_data.json, buildDeck (filter + shuffle), uuid keys
+  cards/Card.jsx                 shared card display + drag/drop component
+  cards/Hand.jsx                 bottom-pinned 3-card hand strip + deck/discard minis
+  cards/PlayArea.jsx             free-form 2D play space (Shift+drop = face-down)
+  cards/OpponentStrip.jsx        top-pinned opponent zones strip (view-only)
+  cards/ZonePanel.jsx            right-panel zone tabs + synced roll log
+  cards/RollLog.jsx              dice roll history renderer
+  cards/CardModal.jsx            Z-modal card zoom
+  cards/FactionPicker.jsx        faction picker on first arrival (transaction()-claimed)
+  cards/dragdrop.js              shared dataTransfer payload helpers
+  net/firebase.js                lazy-loaded RTDB connector + transaction-claim
+  net/sync.js                    serializeForShared, hydrateFromShared, write-paths registry
+  net/room.js                    ?room= URL parsing, clientId, share-link
+  ui/Toolbar.jsx                 mode toggle, lock, room/sync/faction LEDs, end-game, export/import
+public/
+  card_data.json                 placeholder card set (Medieval-hack schema, faction-keyed)
 ```
 
 ## Status
 
-Pre-prototype phase. The app is a tooling layer; the actual rules are still being designed. See [`../project-brief.md`](../project-brief.md) (in the parent design folder, not this repo) for the current locked design decisions and open questions.
+The digital build is feature-complete against [`../prd.md`](../prd.md): board / ship / terrain / card / hand / zone / play-area / dice systems and Firebase room flow all wired. Card content is the long pole — the placeholder `card_data.json` is enough to test phases 1–4 of the build, and dropping in a finalized set requires no engine change.
+
+See [`../project-brief.md`](../project-brief.md) (in the parent design folder, not this repo) for game-design decisions and [`../prd.md`](../prd.md) for the digital build specification.
