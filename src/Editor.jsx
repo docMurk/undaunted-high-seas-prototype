@@ -12,7 +12,6 @@ import Tile from './tiles/Tile.jsx';
 import ShipReserve from './ships/ShipReserve.jsx';
 import ShipRulesPanel from './ships/ShipRulesPanel.jsx';
 import Hand from './cards/Hand.jsx';
-import OpponentStrip from './cards/OpponentStrip.jsx';
 import ZonePanel from './cards/ZonePanel.jsx';
 import PlayArea from './cards/PlayArea.jsx';
 import CardModal from './cards/CardModal.jsx';
@@ -283,8 +282,15 @@ export default function Editor() {
   };
 
   const paintMode = state.mode === 'paint';
-  const cardsActive = state.locked && !!state.localPlayer;
-  const showCardUi = state.locked;
+  const cardsActive = state.locked && !!state.localPlayer && !!state.cardData;
+
+  // Right-side drawer (zones + ship rules). Collapsed by default once the
+  // map is locked so the board / play-area split can breathe; the player
+  // can toggle it back open with the edge tab.
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(true);
+  useEffect(() => {
+    setRightDrawerOpen(!state.locked);
+  }, [state.locked]);
 
   // Toolbar callbacks for room flow
   const onCreateRoom = () => {
@@ -327,16 +333,10 @@ export default function Editor() {
         onPickFaction={() => setShowFactionPicker(true)}
       />
 
-      {showCardUi && state.cardData && state.localPlayer && (
-        <div className="px-3 pt-2">
-          <OpponentStrip state={state} />
-        </div>
-      )}
-
-      <div className="flex-1 flex gap-3 p-3 overflow-hidden">
-        {/* Palette sidebar */}
+      <div className={`flex-1 flex gap-3 p-3 overflow-hidden ${cardsActive ? 'pb-[110px]' : ''}`}>
+        {/* Palette sidebar — only meaningful while editing (unlocked) */}
         {(() => {
-          const sidebarOpen = !(paintMode && state.locked);
+          const sidebarOpen = !state.locked;
           return (
             <div
               className={`flex-shrink-0 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
@@ -361,25 +361,32 @@ export default function Editor() {
           );
         })()}
 
-        {/* Board area */}
+        {/* Main column: board (and play-area, in locked mode) over reserve / hints */}
         <div className="flex-1 flex flex-col gap-3 min-w-0">
-          <div className="flex-1 flex justify-center overflow-auto">
-            {paintMode ? (
-              <TerrainBoard state={state} dispatch={dispatch} svgRef={boardSvgRef} />
-            ) : (
-              <Board
-                state={state}
-                dispatch={dispatch}
-                dragState={dragState}
-                setDragState={setDragState}
-                svgRef={boardSvgRef}
-              />
+          {/* Board / play-area row. In locked mode this becomes a split:
+              the board takes the left half of the visible table, and the
+              play area takes the right half. Both feel like surfaces the
+              player navigates with the same camera. */}
+          <div className="flex-1 flex gap-3 min-h-0 min-w-0">
+            <div className="flex-1 min-w-0 flex justify-center overflow-auto">
+              {paintMode ? (
+                <TerrainBoard state={state} dispatch={dispatch} svgRef={boardSvgRef} />
+              ) : (
+                <Board
+                  state={state}
+                  dispatch={dispatch}
+                  dragState={dragState}
+                  setDragState={setDragState}
+                  svgRef={boardSvgRef}
+                />
+              )}
+            </div>
+            {cardsActive && (
+              <div className="flex-1 min-w-0">
+                <PlayArea state={state} dispatch={dispatch} onZoom={setZoomedCard} />
+              </div>
             )}
           </div>
-
-          {showCardUi && state.cardData && state.localPlayer && (
-            <PlayArea state={state} dispatch={dispatch} />
-          )}
 
           {/* Selected tile actions (tile mode only) */}
           {!paintMode && selectedEntry && !state.locked && (
@@ -398,7 +405,7 @@ export default function Editor() {
             <ShipReserve state={state} dispatch={dispatch} boardSvgRef={boardSvgRef} />
           )}
 
-          <div className="text-[11px] text-slate-500 flex items-center gap-4 px-1">
+          <div className="text-[11px] text-slate-500 flex items-center gap-4 px-1 pb-1">
             {paintMode && state.locked ? (
               <span>Paint mode · locked · click ships · Q/E rotate · F flip suppressed · Del returns to reserve · wheel zoom · right-drag pan · 0 reset</span>
             ) : paintMode ? (
@@ -407,26 +414,43 @@ export default function Editor() {
                 {' '}· click + drag to paint · lock the map to deploy ships
               </span>
             ) : state.locked ? (
-              <span>Locked · click ships · Q/E rotate · F flip suppressed · Del returns to reserve · wheel zoom · right-drag pan · 0 reset</span>
+              <span>Locked · click ships · Q/E rotate · F flip suppressed · Del returns to reserve · wheel zoom · right-drag pan · 0 reset · drag cards onto the play area · hover a card to read it · 1/2/3 select · Z zoom</span>
             ) : (
               <span>Editing · drag tiles to any hex · cursor follows tile · Q/E rotate · Del removes</span>
             )}
           </div>
-
-          {/* Bottom-pinned hand strip (only when locked + faction claimed) */}
-          {showCardUi && state.cardData && state.localPlayer && (
-            <Hand state={state} dispatch={dispatch} onZoom={setZoomedCard} />
-          )}
         </div>
 
-        {/* Right-side panels: zones + rules + roll log */}
-        <div className="flex flex-col gap-2 w-72 flex-shrink-0">
-          {showCardUi && state.cardData && state.localPlayer && (
-            <ZonePanel state={state} dispatch={dispatch} />
-          )}
-          <ShipRulesPanel state={state} dispatch={dispatch} />
+        {/* Right-side drawer: zones + rules + roll log, collapsible. */}
+        <div className="relative flex-shrink-0 flex items-stretch">
+          <button
+            onClick={() => setRightDrawerOpen(o => !o)}
+            className="absolute top-1/2 -translate-y-1/2 -left-3 z-10 w-3 h-16 rounded-l-md bg-slate-800/90 hover:bg-slate-700 ring-1 ring-slate-700 text-slate-300 text-[10px] flex items-center justify-center"
+            aria-label={rightDrawerOpen ? 'Collapse panel' : 'Expand panel'}
+            title={rightDrawerOpen ? 'Collapse' : 'Expand'}
+          >
+            {rightDrawerOpen ? '›' : '‹'}
+          </button>
+          <div
+            className={`flex flex-col gap-2 overflow-hidden transition-all duration-300 ease-in-out ${
+              rightDrawerOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 translate-x-2'
+            }`}
+            aria-hidden={!rightDrawerOpen}
+          >
+            <div className="w-72 flex flex-col gap-2">
+              {cardsActive && (
+                <ZonePanel state={state} dispatch={dispatch} />
+              )}
+              <ShipRulesPanel state={state} dispatch={dispatch} />
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Floating hand — fixed at bottom of viewport, peeks above the table */}
+      {cardsActive && (
+        <Hand state={state} dispatch={dispatch} onZoom={setZoomedCard} />
+      )}
 
       {!paintMode && <PaletteDragGhost dragState={dragState} mouse={mouse} />}
 
