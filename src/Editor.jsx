@@ -368,17 +368,23 @@ export default function Editor() {
               play area takes the right half. Both feel like surfaces the
               player navigates with the same camera. */}
           <div className="flex-1 flex gap-3 min-h-0 min-w-0">
-            <div className="flex-1 min-w-0 flex justify-center overflow-auto">
-              {paintMode ? (
-                <TerrainBoard state={state} dispatch={dispatch} svgRef={boardSvgRef} />
-              ) : (
-                <Board
-                  state={state}
-                  dispatch={dispatch}
-                  dragState={dragState}
-                  setDragState={setDragState}
-                  svgRef={boardSvgRef}
-                />
+            {/* Left side: board on top, ship reserve below the board */}
+            <div className="flex-1 min-w-0 flex flex-col gap-3">
+              <div className="flex-1 min-w-0 flex justify-center overflow-auto">
+                {paintMode ? (
+                  <TerrainBoard state={state} dispatch={dispatch} svgRef={boardSvgRef} />
+                ) : (
+                  <Board
+                    state={state}
+                    dispatch={dispatch}
+                    dragState={dragState}
+                    setDragState={setDragState}
+                    svgRef={boardSvgRef}
+                  />
+                )}
+              </div>
+              {(!paintMode || state.locked) && (
+                <ShipReserve state={state} dispatch={dispatch} boardSvgRef={boardSvgRef} />
               )}
             </div>
             {cardsActive && (
@@ -399,10 +405,6 @@ export default function Editor() {
               <button onClick={onSelectedClone}  className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-100">Clone</button>
               <button onClick={onSelectedRemove} className="px-2 py-1 text-xs rounded bg-red-900 hover:bg-red-800 text-red-100">Remove</button>
             </div>
-          )}
-
-          {(!paintMode || state.locked) && (
-            <ShipReserve state={state} dispatch={dispatch} boardSvgRef={boardSvgRef} />
           )}
 
           <div className="text-[11px] text-slate-500 flex items-center gap-4 px-1 pb-1">
