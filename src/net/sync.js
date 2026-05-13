@@ -124,7 +124,7 @@ export function hydrateFromShared(sharedState, owner, roomId) {
       }
       zones[owner] = ownZones;
     }
-    // Opponent deck arrives as { length: N } — leave as-is for OpponentStrip.
+    // Opponent deck arrives as a length stub — leave as-is.
     out.zones = zones;
   }
 
