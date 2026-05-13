@@ -43,12 +43,13 @@ A collapsible right-side panel (toolbar **📖 Rules** button, or `×` in the pa
 
 ## Cards, hands, zones — the digital build
 
-Once the map is locked **and** a faction is claimed, the editor surfaces the full card UI:
+Once the map is locked **and** a faction is claimed, the editor reshapes itself into a "table" view:
 
-- **Hand** — bottom-pinned 3-card strip. Hotkeys `1` / `2` / `3` select; `Z` opens a large view-only modal on the selected card. Click the **Deck** mini to draw to hand size (3); auto-reshuffles the discard back into the deck when empty.
-- **Play area** — free-form 2D overlay above the board. Drop any card anywhere by `(x, y)` to indicate ship assignment. Hold **Shift** on drop to place face-down (initiative bid, set-aside, etc.); double-click to flip.
-- **Zone panel (right)** — tabs for own **Supply / Discard / Removed / Set aside** + the synced roll log. Drop targets accept cards from any zone. The Removed tab surfaces the BoB p.20 casualty-priority hint (hand → discard → deck) — guidance only, not enforcement.
-- **Opponent strip (top)** — opponent's deck count, discard top, supply (face-up titles), removed/set-aside back-counts. View-only; face-down cards arrive without their `cardId`.
+- **Split table** — the board takes the left half of the central row and the **play area** takes the right half, each as a peer surface. The board still zooms / pans inside its half (wheel zoom, right-drag pan, `0` reset); the play area is a free-form card surface.
+- **Floating hand** — three cards anchored to the bottom edge of the viewport, fanned and peeking. Hover lifts a card fully into view at ~1.45×; drag it onto the play area or a zone. The container is `pointer-events: none` so the board still receives wheel and right-drag between the cards. Hotkeys `1` / `2` / `3` select; `Z` opens a full-screen modal on the selected card.
+- **Deck & discard chips** — sit on either side of the floating hand. Click the deck chip to draw to hand size (3); auto-reshuffles the discard back into the deck when empty. Drop a hand card on the discard chip to discard.
+- **Play area** — drop cards anywhere by normalized `(fx, fy)` in `0..1` so positions survive window / split resize. Hover enlarges a played card to ~1.8× for at-the-table reading. Double-click flips your own cards face-up / face-down; double-click an opponent's card to open the modal preview. Hold **Shift** on drop to place face-down.
+- **Right drawer** — zones (Supply / Discard / Removed / Set aside) and ship rules / dice roller, collapsed by default once the map is locked. Click the edge tab to reopen.
 
 Card data lives in `public/card_data.json` (Medieval-hack schema, instance-based: three copies = three entries). A placeholder set ships with the repo so the engine is testable without finalized card design. Drop in a real `card_data.json` and nothing else needs to change.
 
@@ -66,12 +67,81 @@ Two players each open the same `?room=<id>` link and play. No auth, no matchmaki
 
 **Trusted-clients model**: clients trust each other; cheating is a social problem. The engine never enforces phase, turn order, draw timing, casualty selection, or round structure — players manage flow. Last-writer-wins on shared paths (`playArea`, `rolls`, `placed`, `terrain`, `ships`); concurrent writes to disjoint paths merge cleanly via Firebase RTDB's per-key merge.
 
-### Configuring Firebase
+### Current state
 
-The sync layer is lazy-loaded — without config, the app runs fully solo (no networking, no errors). To enable multiplayer, supply Firebase Realtime Database credentials at build/dev time:
+The **client** is fully wired for multiplayer — room creation, faction-slot claim transaction, patch-write on every state mutation, hidden-information handling, reconnect-friendly. The piece that's missing is **build-time Firebase configuration on the deployed site**. Locally, dropping a `.env.local` file in and running `npm run dev` is enough to play multiplayer. The GitHub Pages bundle, in contrast, is built without any `VITE_FIREBASE_*` env vars, so the published site falls back to offline mode and a second player can open the URL but never syncs.
+
+### Plan to make the deployed site multiplayer
+
+Self-contained punch list — no client code changes needed.
+
+1. **Create a Firebase project + RTDB instance.**
+   - Firebase console → "Add project" (Google Analytics off is fine). Pick a project ID.
+   - Inside the project: Build → **Realtime Database** → Create database → pick a region (`us-central1` is fine) → start in **locked mode**, we'll write rules in step 4.
+   - Add a Web app (`</>` icon on the project overview) → register without Firebase Hosting. Copy the config object that appears (`apiKey`, `authDomain`, `databaseURL`, `projectId`, `appId`, …).
+
+2. **Add the config as GitHub Actions secrets.**
+   In the repo → Settings → Secrets and variables → **Actions** → New repository secret, one per line. Names must match the `VITE_FIREBASE_*` reads in `src/net/firebase.js:17-21`:
+
+   | Secret name | Source field |
+   | --- | --- |
+   | `VITE_FIREBASE_API_KEY` | `apiKey` |
+   | `VITE_FIREBASE_AUTH_DOMAIN` | `authDomain` |
+   | `VITE_FIREBASE_DATABASE_URL` | `databaseURL` (full `https://…firebaseio.com`) |
+   | `VITE_FIREBASE_PROJECT_ID` | `projectId` |
+   | `VITE_FIREBASE_APP_ID` | `appId` |
+
+   The API key is safe to expose in a public bundle — Firebase web keys are public; security is enforced by RTDB rules in step 4.
+
+3. **Inject the secrets into the build step.** Patch `.github/workflows/deploy.yml` so the `npm run build` step gets the env vars:
+
+   ```yaml
+   - run: npm ci
+   - run: npm run build
+     env:
+       VITE_FIREBASE_API_KEY:      ${{ secrets.VITE_FIREBASE_API_KEY }}
+       VITE_FIREBASE_AUTH_DOMAIN:  ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+       VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+       VITE_FIREBASE_PROJECT_ID:   ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+       VITE_FIREBASE_APP_ID:       ${{ secrets.VITE_FIREBASE_APP_ID }}
+   ```
+
+   Vite reads `import.meta.env.VITE_*` at build time and inlines the values into the bundle. After the next push to `master`, the deployed bundle ships with the config baked in.
+
+4. **Write RTDB rules** so the database is safe to publish without auth. Replace the default locked rules with something like:
+
+   ```json
+   {
+     "rules": {
+       "rooms": {
+         "$roomId": {
+           ".read":  "$roomId.matches(/^[a-z0-9]{4,12}$/)",
+           ".write": "$roomId.matches(/^[a-z0-9]{4,12}$/)",
+           "players": {
+             "$slot": {
+               ".validate": "$slot.matches(/^p[12]$/) && newData.hasChildren(['clientId','faction'])"
+             }
+           }
+         }
+       }
+     }
+   }
+   ```
+
+   This restricts writes to rooms whose ID matches the generator (`makeRoomId` produces 6 lowercase alnum, the regex allows 4–12) and forbids reads / writes at the database root. Without auth, anyone with a valid-looking room ID can read or write that room — that's exactly the trusted-clients model the rest of the engine assumes. Tighten further (auth, rate limits) only when the prototype graduates.
+
+5. **Push to `master`.** The GH Pages workflow rebuilds with the env vars; the sync LED in the toolbar should flip from "offline" to "connected" once two clients open the same `?room=` URL.
+
+6. **Smoke test.** Open the live URL in two browsers (or a private window). Click **+ Room** on one; copy the link; paste in the other. Pick factions on each side. Confirm: tile placement on side A appears on side B; cards drawn on A stay hidden on B; cards dropped on the play area appear on both screens; rolls appear in the shared log on both.
+
+**Free-tier note.** Firebase RTDB's free Spark plan covers 100 simultaneous connections, 1 GB stored, and 10 GB/month downloaded — orders of magnitude more than two players need. No billing setup required.
+
+### Configuring Firebase locally
+
+For local multiplayer dev (or solo testing of the network path), drop the same five `VITE_FIREBASE_*` keys into a gitignored `.env.local` at the repo root:
 
 ```bash
-# .env.local (gitignored)
+# .env.local
 VITE_FIREBASE_API_KEY=...
 VITE_FIREBASE_AUTH_DOMAIN=...
 VITE_FIREBASE_DATABASE_URL=https://<your-project>-default-rtdb.firebaseio.com
@@ -79,7 +149,7 @@ VITE_FIREBASE_PROJECT_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
 
-Or inject at runtime via `window.__firebaseConfig = {...}` before the app boots. The free tier covers two players forever.
+Or inject at runtime via `window.__firebaseConfig = {...}` before the app boots (handy for embedding in another page without rebuilding).
 
 ## Firing arcs & line of sight
 
@@ -157,10 +227,9 @@ src/
   ships/ShipRulesPanel.jsx       collapsible right panel: class stats + dice roller (dispatches ROLL_DICE)
   cards/data.js                  load card_data.json, buildDeck (filter + shuffle), uuid keys
   cards/Card.jsx                 shared card display + drag/drop component
-  cards/Hand.jsx                 bottom-pinned 3-card hand strip + deck/discard minis
-  cards/PlayArea.jsx             free-form 2D play space (Shift+drop = face-down)
-  cards/OpponentStrip.jsx        top-pinned opponent zones strip (view-only)
-  cards/ZonePanel.jsx            right-panel zone tabs + synced roll log
+  cards/Hand.jsx                 floating 3-card hand overlay + deck/discard chips (fan + peek + hover-lift)
+  cards/PlayArea.jsx             free-form play surface, normalized 0..1 coords (Shift+drop = face-down)
+  cards/ZonePanel.jsx            right-drawer zone tabs + synced roll log
   cards/RollLog.jsx              dice roll history renderer
   cards/CardModal.jsx            Z-modal card zoom
   cards/FactionPicker.jsx        faction picker on first arrival (transaction()-claimed)
